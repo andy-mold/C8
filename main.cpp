@@ -59,6 +59,8 @@ void initializeUI() {
 
     LCD.DrawRectangle(columnWidth*2,textBuffer,checkboxLength,checkboxLength);
     LCD.DrawRectangle(screenWidth-columnWidth*2-checkboxLength,textBuffer,checkboxLength,checkboxLength);
+
+    LCD.DrawHorizontalLine(rowHeight*2, columnWidth, columnWidth+middleWidth);
     
 }
 
@@ -80,6 +82,10 @@ void updateUI(float leftPower, float rightPower) {
 
     LCD.SetFontColor(GREEN);
     LCD.FillRectangle(columnWidth*2,textBuffer,checkboxLength,checkboxLength);
+
+    LCD.SetFontColor(BLUE);
+    LCD.WriteAt("CDS:",columnWidth+textBuffer,textBuffer+rowHeight);
+    LCD.WriteAt(cdsCell.Value(), columnWidth+textBuffer+50, textBuffer+rowHeight);
 }
 
 void driveForwards(float power, float time) {
@@ -117,8 +123,11 @@ void startWithLight() {
     while (waiting) {
         int light = getLightInput();
         if (light == 1) {
+            updateUI(0,0);
             return;
         }
+        Sleep(1.0);
+        updateUI(0,0);
     }
 }
 
@@ -154,8 +163,9 @@ int main(void) {
     initializeStartup();
     updateUI(0,0);
     
-    driveForwards(-50.0, 15.0);
-    turnLeft(30.0, 7.0);
-    driveForwards(-50.0, 7.0);
+    while (true) {
+        updateUI(0,0);
+        Sleep(0.5);
+    }
     
 }
