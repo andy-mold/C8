@@ -7,6 +7,11 @@
 #define SCREENWIDTH 320
 #define SCREENHEIGHT 240
 
+FEHMotor rightMotor(FEHMotor::Motor0, 7.2);
+FEHMotor leftMotor(FEHMotor::Motor2, 7.2);
+
+AnalogInputPin cdsCell(FEHIO::P0_0);
+
 void initializeStartup() {
     LCD.Clear();
     LCD.SetBackgroundColor(BLACK);
@@ -42,8 +47,8 @@ void initializeUI() {
     LCD.DrawRectangle(1,0,columnWidth-1,screenWidth-2);
     LCD.DrawRectangle(screenWidth-columnWidth,0,columnWidth-1,screenWidth-2);
 
-    LCD.WriteAt("LD",textBuffer,textBuffer);
-    LCD.WriteAt("RD",screenWidth-columnWidth+textBuffer,textBuffer);
+    LCD.WriteAt("FL",textBuffer,textBuffer);
+    LCD.WriteAt("BR",screenWidth-columnWidth+textBuffer,textBuffer);
 
     LCD.DrawHorizontalLine(rowHeight,0,columnWidth);
     LCD.DrawHorizontalLine(rowHeight,screenWidth-columnWidth,screenWidth);
@@ -54,15 +59,103 @@ void initializeUI() {
 
     LCD.DrawRectangle(columnWidth*2,textBuffer,checkboxLength,checkboxLength);
     LCD.DrawRectangle(screenWidth-columnWidth*2-checkboxLength,textBuffer,checkboxLength,checkboxLength);
+    
+}
+
+void updateUI(float leftPower, float rightPower) {
+    initializeUI();
+
+    int screenWidth = SCREENWIDTH;
+    int screenHeight = SCREENHEIGHT;
+    int columnWidth = 50;
+    int textBuffer = 5;
+    int rowHeight = 25;
+    int middleWidth = 220;
+    int checkboxLength = 15;
+
+    LCD.SetFontColor(YELLOW);
+
+    LCD.DrawRectangle(1, rowHeight + (screenHeight-rowHeight)/2, columnWidth-1, -1*((screenHeight-rowHeight)/2)*leftPower/100.0);
+    LCD.DrawRectangle(screenWidth-columnWidth, rowHeight + (screenHeight-rowHeight)/2, columnWidth-1, -1*((screenHeight-rowHeight)/2)*rightPower/100.0);
+
     LCD.SetFontColor(GREEN);
     LCD.FillRectangle(columnWidth*2,textBuffer,checkboxLength,checkboxLength);
 }
 
-void uptdateUI() {
+void driveForwards(float power, float time) {
+    leftMotor.SetPercent(power);
+    rightMotor.SetPercent(power);
 
+    updateUI(power, power);
+
+    Sleep(time);
+
+    leftMotor.Stop();
+    rightMotor.Stop();
+
+    updateUI(0,0);
+}
+
+int getLightInput() {
+    float input = cdsCell.Value();
+    if (input < 1.0) {
+        //red
+        return 1;
+    }
+    else if (input < 2.0) {
+        //blue
+        return 2;
+    }
+    else {
+        return 0;
+    }
+}
+
+void startWithLight() {
+    bool waiting = true;
+
+    while (waiting) {
+        int light = getLightInput();
+        if (light == 1) {
+            return;
+        }
+    }
+}
+
+void turnRight(float power, float time) {
+    leftMotor.SetPercent(power);
+    rightMotor.SetPercent(-power);
+
+    updateUI(power, -power);
+
+    Sleep(time);
+
+    leftMotor.Stop();
+    rightMotor.Stop();
+
+    updateUI(0,0);
+}
+
+void turnLeft(float power, float time) {
+    leftMotor.SetPercent(-power);
+    rightMotor.SetPercent(power);
+
+    updateUI(-power, power);
+
+    Sleep(time);
+
+    leftMotor.Stop();
+    rightMotor.Stop();
+
+    updateUI(0,0);
 }
 
 int main(void) {
     initializeStartup();
-    initializeUI();
+    updateUI(0,0);
+    
+    driveForwards(-50.0, 15.0);
+    turnLeft(30.0, 7.0);
+    driveForwards(-50.0, 7.0);
+    
 }
