@@ -80,12 +80,28 @@ void updateUI(float leftPower, float rightPower) {
     LCD.DrawRectangle(1, rowHeight + (screenHeight-rowHeight)/2, columnWidth-1, -1*((screenHeight-rowHeight)/2)*leftPower/100.0);
     LCD.DrawRectangle(screenWidth-columnWidth, rowHeight + (screenHeight-rowHeight)/2, columnWidth-1, -1*((screenHeight-rowHeight)/2)*rightPower/100.0);
 
-    LCD.SetFontColor(GREEN);
-    LCD.FillRectangle(columnWidth*2,textBuffer,checkboxLength,checkboxLength);
-
     LCD.SetFontColor(BLUE);
     LCD.WriteAt("CDS:",columnWidth+textBuffer,textBuffer+rowHeight);
     LCD.WriteAt(cdsCell.Value(), columnWidth+textBuffer+50, textBuffer+rowHeight);
+}
+
+void updateOrientation(float leftPower, float rightPower, bool orientation) {
+    updateUI(leftPower, rightPower);
+
+    int screenWidth = SCREENWIDTH;
+    int screenHeight = SCREENHEIGHT;
+    int columnWidth = 50;
+    int textBuffer = 5;
+    int rowHeight = 25;
+    int middleWidth = 220;
+    int checkboxLength = 15;
+
+    LCD.SetFontColor(GREEN);
+    if (orientation == true) {
+        LCD.FillRectangle(columnWidth*2,textBuffer,checkboxLength,checkboxLength);
+    } else {
+        LCD.FillRectangle(screenWidth-columnWidth*2-checkboxLength,textBuffer,checkboxLength,checkboxLength);
+    }
 }
 
 void driveForwards(float power, float time) {
@@ -159,13 +175,38 @@ void turnLeft(float power, float time) {
     updateUI(0,0);
 }
 
+void changeOrientation(bool orientation) {
+    if (orientation) {
+        orientation = false;
+    } else {
+        orientation = true;
+    }
+    updateOrientation(0,0,orientation);
+}
+
 int main(void) {
     initializeStartup();
-    updateUI(0,0);
+    bool orientation = true;
+    updateOrientation(0,0,orientation);
+
+    driveForwards(0,0);
+    turnRight(0,0);
+    changeOrientation(orientation);
+    driveForwards(0,0);
+    changeOrientation(orientation);
+    driveForwards(0,0);
+    changeOrientation(orientation);
+    driveForwards(0,0);
+    changeOrientation(orientation);
+    driveForwards(0,0);
+    changeOrientation(orientation);
+
+    int light = getLightInput();
     
-    while (true) {
-        updateUI(0,0);
-        Sleep(0.5);
+    if (light == 1) {
+        driveForwards(0,0);
+    } if (light == 2) {
+        driveForwards(0,0);
     }
     
 }
