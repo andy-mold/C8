@@ -7,10 +7,18 @@
 #define SCREENWIDTH 320
 #define SCREENHEIGHT 240
 
-FEHMotor rightMotor(FEHMotor::Motor0, 7.2);
+//front of robot marked with electrical tape
+//no grey tape
 FEHMotor leftMotor(FEHMotor::Motor2, 7.2);
+//grey tape
+FEHMotor rightMotor(FEHMotor::Motor0, 7.2);
+
+DigitalEncoder leftEncoder(FEHIO::P0_1);
+DigitalEncoder rightEncoder(FEHIO::P0_2);
 
 AnalogInputPin cdsCell(FEHIO::P0_0);
+
+FEHServo servo(FEHServo::Servo0);
 
 void initializeStartup() {
     LCD.Clear();
@@ -61,6 +69,7 @@ void initializeUI() {
     LCD.DrawRectangle(screenWidth-columnWidth*2-checkboxLength,textBuffer,checkboxLength,checkboxLength);
 
     LCD.DrawHorizontalLine(rowHeight*2, columnWidth, columnWidth+middleWidth);
+    LCD.DrawHorizontalLine(rowHeight*3, columnWidth, columnWidth+middleWidth);
     
 }
 
@@ -83,6 +92,8 @@ void updateUI(float leftPower, float rightPower) {
     LCD.SetFontColor(BLUE);
     LCD.WriteAt("CDS:",columnWidth+textBuffer,textBuffer+rowHeight);
     LCD.WriteAt(cdsCell.Value(), columnWidth+textBuffer+50, textBuffer+rowHeight);
+
+    LCD.WriteAt("Color: Blue",columnWidth+textBuffer,textBuffer+rowHeight*2);
 }
 
 void updateOrientation(float leftPower, float rightPower, bool orientation) {
@@ -104,8 +115,8 @@ void updateOrientation(float leftPower, float rightPower, bool orientation) {
     }
 }
 
-void driveForwards(float power, float time) {
-    leftMotor.SetPercent(power);
+void driveForwardsTime(float power, float time) {
+    leftMotor.SetPercent(-power);
     rightMotor.SetPercent(power);
 
     updateUI(power, power);
@@ -118,13 +129,33 @@ void driveForwards(float power, float time) {
     updateUI(0,0);
 }
 
+void driveForwards(float power, int counts) {
+    rightEncoder.ResetCounts();
+    leftEncoder.ResetCounts();
+
+    rightMotor.SetPercent(power);
+    leftMotor.SetPercent(-power);
+
+    while((leftEncoder.Counts() + rightEncoder.Counts()) / 2. < counts);
+
+    rightMotor.Stop();
+    leftMotor.Stop();
+}
+
 int getLightInput() {
     float input = cdsCell.Value();
-    if (input < 1.0) {
+    Sleep(0.1);
+    float input2 = cdsCell.Value();
+    Sleep(0.1);
+    float input3 = cdsCell.Value();
+
+    float average = (input + input2 + input3)/3;
+
+    if (average < 1.0) {
         //red
         return 1;
     }
-    else if (input < 2.0) {
+    else if (average < 2.0) {
         //blue
         return 2;
     }
@@ -147,9 +178,9 @@ void startWithLight() {
     }
 }
 
-void turnRight(float power, float time) {
+void turnLeft(float power, float time) {
     leftMotor.SetPercent(power);
-    rightMotor.SetPercent(-power);
+    rightMotor.SetPercent(power);
 
     updateUI(power, -power);
 
@@ -161,9 +192,9 @@ void turnRight(float power, float time) {
     updateUI(0,0);
 }
 
-void turnLeft(float power, float time) {
+void turnRight(float power, float time) {
     leftMotor.SetPercent(-power);
-    rightMotor.SetPercent(power);
+    rightMotor.SetPercent(-power);
 
     updateUI(-power, power);
 
@@ -175,38 +206,36 @@ void turnLeft(float power, float time) {
     updateUI(0,0);
 }
 
-void changeOrientation(bool orientation) {
+bool changeOrientation(bool orientation) {
+    bool newOrientation = orientation;
     if (orientation) {
-        orientation = false;
+        leftMotor.SetPercent(-50);
+        rightMotor.SetPercent(-50);
+        newOrientation = false;
+        servo.SetDegree(0.0);
+        Sleep(0.2);
+        leftMotor.SetPercent(0);
+        rightMotor.SetPercent(0);
     } else {
-        orientation = true;
+        leftMotor.SetPercent(50);
+        rightMotor.SetPercent(50);
+        newOrientation = true;
+        servo.SetDegree(180.0);
+        Sleep(0.2);
+        leftMotor.SetPercent(0);
+        rightMotor.SetPercent(0);
     }
-    updateOrientation(0,0,orientation);
+    updateOrientation(0,0,newOrientation);
+    return newOrientation;
 }
 
 int main(void) {
     initializeStartup();
+    updateUI(0,0);
     bool orientation = true;
-    updateOrientation(0,0,orientation);
 
-    driveForwards(0,0);
-    turnRight(0,0);
-    changeOrientation(orientation);
-    driveForwards(0,0);
-    changeOrientation(orientation);
-    driveForwards(0,0);
-    changeOrientation(orientation);
-    driveForwards(0,0);
-    changeOrientation(orientation);
-    driveForwards(0,0);
-    changeOrientation(orientation);
+    servo.SetMin(1076);
+    servo.SetMax(2090);
 
-    int light = getLightInput();
-    
-    if (light == 1) {
-        driveForwards(0,0);
-    } if (light == 2) {
-        driveForwards(0,0);
-    }
     
 }
