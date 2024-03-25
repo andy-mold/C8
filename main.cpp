@@ -3,6 +3,8 @@
 #include <FEHLCD.h>
 #include <FEHIO.h>
 #include <FEHMotor.h>
+#include <FEHRCS.h>
+#include <FEHBattery.h>
 
 #define SCREENWIDTH 320
 #define SCREENHEIGHT 240
@@ -70,6 +72,7 @@ void initializeUI() {
 
     LCD.DrawHorizontalLine(rowHeight*2, columnWidth, columnWidth+middleWidth);
     LCD.DrawHorizontalLine(rowHeight*3, columnWidth, columnWidth+middleWidth);
+    LCD.DrawHorizontalLine(rowHeight*4, columnWidth, columnWidth+middleWidth);
     
 }
 
@@ -94,6 +97,7 @@ void updateUI(float leftPower, float rightPower) {
     LCD.WriteAt(cdsCell.Value(), columnWidth+textBuffer+50, textBuffer+rowHeight);
 
     LCD.WriteAt("Color: Blue",columnWidth+textBuffer,textBuffer+rowHeight*2);
+    LCD.WriteAt(RCS.GetCorrectLever(),columnWidth+textBuffer,textBuffer+rowHeight*3);
 }
 
 void updateOrientation(float leftPower, float rightPower, bool orientation) {
@@ -116,10 +120,13 @@ void updateOrientation(float leftPower, float rightPower, bool orientation) {
 }
 
 void driveForwardsTime(float power, float time) {
-    leftMotor.SetPercent(-power);
-    rightMotor.SetPercent(power);
+    float maxVoltage = 11.5;
+    float actualPower = maxVoltage/Battery.Voltage()*power;
 
-    updateUI(power, power);
+    leftMotor.SetPercent(-actualPower);
+    rightMotor.SetPercent(actualPower);
+
+    updateUI(actualPower, actualPower);
 
     Sleep(time);
 
@@ -130,11 +137,14 @@ void driveForwardsTime(float power, float time) {
 }
 
 void driveForwards(float power, int counts) {
+    float maxVoltage = 11.5;
+    float actualPower = maxVoltage/Battery.Voltage()*power;
+
     rightEncoder.ResetCounts();
     leftEncoder.ResetCounts();
 
-    rightMotor.SetPercent(power);
-    leftMotor.SetPercent(-power);
+    rightMotor.SetPercent(actualPower);
+    leftMotor.SetPercent(-actualPower);
 
     while((leftEncoder.Counts() + rightEncoder.Counts()) / 2. < counts);
 
@@ -179,10 +189,13 @@ void startWithLight() {
 }
 
 void turnLeft(float power, float time) {
-    leftMotor.SetPercent(power);
-    rightMotor.SetPercent(power);
+    float maxVoltage = 11.5;
+    float actualPower = maxVoltage/Battery.Voltage()*power;
 
-    updateUI(power, -power);
+    leftMotor.SetPercent(actualPower);
+    rightMotor.SetPercent(actualPower);
+
+    updateUI(actualPower, -actualPower);
 
     Sleep(time);
 
@@ -193,10 +206,13 @@ void turnLeft(float power, float time) {
 }
 
 void turnRight(float power, float time) {
-    leftMotor.SetPercent(-power);
-    rightMotor.SetPercent(-power);
+    float maxVoltage = 11.5;
+    float actualPower = maxVoltage/Battery.Voltage()*power;
 
-    updateUI(-power, power);
+    leftMotor.SetPercent(-actualPower);
+    rightMotor.SetPercent(-actualPower);
+
+    updateUI(-actualPower, actualPower);
 
     Sleep(time);
 
@@ -208,20 +224,25 @@ void turnRight(float power, float time) {
 
 bool changeOrientation(bool orientation) {
     bool newOrientation = orientation;
+
+    float maxVoltage = 11.5;
+    float actualPower = maxVoltage/Battery.Voltage()*85;
+
     if (orientation) {
-        leftMotor.SetPercent(-50);
-        rightMotor.SetPercent(-50);
+        leftMotor.SetPercent(-actualPower);
+        rightMotor.SetPercent(-actualPower);
         newOrientation = false;
         servo.SetDegree(0.0);
-        Sleep(0.2);
+        Sleep(0.18);
         leftMotor.SetPercent(0);
         rightMotor.SetPercent(0);
+        
     } else {
-        leftMotor.SetPercent(50);
-        rightMotor.SetPercent(50);
+        leftMotor.SetPercent(actualPower);
+        rightMotor.SetPercent(actualPower);
         newOrientation = true;
         servo.SetDegree(180.0);
-        Sleep(0.2);
+        Sleep(0.15);
         leftMotor.SetPercent(0);
         rightMotor.SetPercent(0);
     }
@@ -229,13 +250,198 @@ bool changeOrientation(bool orientation) {
     return newOrientation;
 }
 
-int main(void) {
-    initializeStartup();
-    updateUI(0,0);
+void calibrateServo() {
     bool orientation = true;
 
-    servo.SetMin(1076);
-    servo.SetMax(2090);
+    orientation = changeOrientation(orientation);
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+    Sleep(2.0);
+    servo.SetDegree(155.0);
+}
 
+void driveForwardsDebug(float power, float time) {
+    float maxVoltage = 11.5;
+    float actualPower = maxVoltage/Battery.Voltage()*power;
+
+    leftMotor.SetPercent(-actualPower);
+    rightMotor.SetPercent(actualPower);
+
+    Sleep(time);
+
+    leftMotor.Stop();
+    rightMotor.Stop();
+}
+
+bool changeOrientationDebug(bool orientation) {
+    bool newOrientation = orientation;
+
+    float maxVoltage = 11.5;
+    float actualPower = maxVoltage/Battery.Voltage()*85;
+
+    if (orientation) {
+        leftMotor.SetPercent(-actualPower);
+        rightMotor.SetPercent(-actualPower);
+        newOrientation = false;
+        servo.SetDegree(0.0);
+        Sleep(0.18);
+        leftMotor.SetPercent(0);
+        rightMotor.SetPercent(0);
+        
+    } else {
+        leftMotor.SetPercent(actualPower);
+        rightMotor.SetPercent(actualPower);
+        newOrientation = true;
+        servo.SetDegree(180.0);
+        Sleep(0.15);
+        leftMotor.SetPercent(0);
+        rightMotor.SetPercent(0);
+    }
+    return newOrientation;
+}
+
+void runDebugMenu() {
+    int screenWidth = SCREENWIDTH;
+    int screenHeight = SCREENHEIGHT;
+    int columnWidth = 100;
+    int textBuffer = 5;
+    int rowHeight = 25;
+    int middleWidth = 220;
+    int checkboxLength = 15;
+
+    LCD.Clear();
+    LCD.SetFontColor(BLUE);
+
+    LCD.DrawRectangle(1,0,screenWidth-2,screenHeight-2);
+
+    LCD.DrawRectangle(1,0,columnWidth-1,screenWidth-2);
+    LCD.DrawRectangle(screenWidth-columnWidth,0,columnWidth-1,screenWidth-2);
+
+    LCD.DrawHorizontalLine(screenHeight/2, 0, screenWidth);
+    LCD.DrawHorizontalLine(screenHeight/4, columnWidth, screenWidth-columnWidth);
+    LCD.DrawHorizontalLine(screenHeight - screenHeight/4, columnWidth, screenWidth-columnWidth);
+    LCD.DrawVerticalLine(screenWidth/2, 0, screenHeight);
+
+    LCD.WriteAt("F/R", textBuffer, textBuffer);
+    LCD.WriteAt("B/L", textBuffer, textBuffer + screenHeight / 2);
+    LCD.WriteAt("Orient", screenWidth - columnWidth + textBuffer, textBuffer);
+    LCD.WriteAt("Quit", screenWidth - columnWidth + textBuffer, screenHeight / 2 + textBuffer);
+
+    LCD.WriteAt("20%", columnWidth + textBuffer, textBuffer);
+    LCD.WriteAt("50%", columnWidth + textBuffer, textBuffer + screenHeight / 4);
+    LCD.WriteAt("70%", columnWidth + textBuffer, textBuffer + screenHeight / 2);
+    LCD.WriteAt("90%", columnWidth + textBuffer, textBuffer + screenHeight / 2 + screenHeight / 4);
+
+    LCD.WriteAt("1s", screenWidth / 2 + textBuffer, textBuffer);
+    LCD.WriteAt("3s", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 4);
+    LCD.WriteAt("5s", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 2);
+    LCD.WriteAt("7s", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 2 + screenHeight / 4);
+
+    bool exit = false;
+    bool orientation = true;
+
+    float time = 1.0;
+    float power = 20.0;
+
+    while(!exit) {
+        float x_position, y_position;
+        float x_trash, y_trash;
+
+        LCD.ClearBuffer();
+        while(!LCD.Touch(&x_position,&y_position)) {};
+        while(LCD.Touch(&x_trash,&y_trash)) {};
+
+        if (x_position < 100 && y_position < 120) {
+            driveForwardsDebug(power, time);
+        } else if (x_position < 100) {
+            driveForwardsDebug(-power, time);
+        } else if (x_position < screenWidth/2 && y_position < screenHeight/4) {
+            power = 20.0;
+        } else if (x_position < screenWidth/2 && y_position < screenHeight/2) {
+            power = 50.0;
+        } else if (x_position < screenWidth/2 && y_position < screenHeight/4 + screenHeight/2) {
+            power = 70.0;
+        } else if (x_position < screenWidth/2) {
+            power = 90.0;
+        } else if (x_position < screenWidth - columnWidth && y_position < screenHeight/4) {
+            time = 1.0;
+        } else if (x_position < screenWidth - columnWidth && y_position < screenHeight/2) {
+            time = 3.0;
+        } else if (x_position < screenWidth - columnWidth && y_position < screenHeight/4 + screenHeight/2) {
+            time = 5.0;
+        } else if (x_position < screenWidth - columnWidth) {
+            time = 7.0;
+        } else if (y_position < screenHeight/2) {
+            orientation = changeOrientationDebug(orientation);
+        } else {
+            exit = true;
+        }
+    }
+    LCD.Clear();
+}
+
+int main(void) {
+    //startup ui
+    initializeStartup();
+    updateUI(0,0);
+
+    //set servo values
+    servo.SetMin(571);
+    servo.SetMax(1819);
+    servo.SetDegree(180);
+
+    runDebugMenu();
+    /*
+
+    //Initialize RCS
+    RCS.InitializeTouchMenu("C8LAaK2zD");
+
+    //robot starts run in closed position (closed = true)
+    bool orientation = true;
+
+    //startWithLight();
+
+    //Fuel Lever Code
+
+    driveForwardsTime(50, 2.4);
+    turnLeft(20, 2.5);
+    updateUI(0,0);
+
+    
+    if (RCS.GetCorrectLever() == 0) {
+        //A
+        driveForwardsTime(30, 0.2);
+    } else if (RCS.GetCorrectLever() == 1) {
+        //A1
+        driveForwardsTime(50, 0.6);
+    } else if (RCS.GetCorrectLever() == 2) {
+        //B
+        driveForwardsTime(50, 1.0);
+    }
+
+    orientation = changeOrientation(orientation);
+
+    driveForwardsTime(-20, 2.6);
+    driveForwardsTime(20, 2.6);
+
+    
+    orientation = changeOrientation(orientation);
+    driveForwardsTime(20, 0.4);
+    orientation = changeOrientation(orientation);
+
+    driveForwardsTime(-20, 3.0);
+    driveForwardsTime(20, 2.6);
+    */
+
+
+
+
+
+    //return to closed
+    //Sleep(5.0);
+    //orientation = changeOrientation(orientation);
+    
+    //set to loose
+    servo.SetDegree(160);
     
 }
