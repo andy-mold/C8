@@ -15,8 +15,8 @@ FEHMotor leftMotor(FEHMotor::Motor2, 7.2);
 //grey tape
 FEHMotor rightMotor(FEHMotor::Motor0, 7.2);
 
-DigitalEncoder leftEncoder(FEHIO::P0_1);
-DigitalEncoder rightEncoder(FEHIO::P0_2);
+DigitalEncoder leftEncoder(FEHIO::P0_2);
+DigitalEncoder rightEncoder(FEHIO::P3_0);
 
 AnalogInputPin cdsCell(FEHIO::P0_0);
 
@@ -76,6 +76,28 @@ void initializeUI() {
     
 }
 
+int getLightInput() {
+    float input = cdsCell.Value();
+    Sleep(0.1);
+    float input2 = cdsCell.Value();
+    Sleep(0.1);
+    float input3 = cdsCell.Value();
+
+    float average = (input + input2 + input3)/3;
+
+    if (average < 1.0) {
+        //red
+        return 1;
+    }
+    else if (average < 2.0) {
+        //blue
+        return 2;
+    }
+    else {
+        return 0;
+    }
+}
+
 void updateUI(float leftPower, float rightPower) {
     initializeUI();
 
@@ -96,7 +118,15 @@ void updateUI(float leftPower, float rightPower) {
     LCD.WriteAt("CDS:",columnWidth+textBuffer,textBuffer+rowHeight);
     LCD.WriteAt(cdsCell.Value(), columnWidth+textBuffer+50, textBuffer+rowHeight);
 
-    LCD.WriteAt("Color: Blue",columnWidth+textBuffer,textBuffer+rowHeight*2);
+    if (getLightInput() == 1) {
+        LCD.WriteAt("Color: Red",columnWidth+textBuffer,textBuffer+rowHeight*2);
+    } else if (getLightInput() == 2) { 
+        LCD.WriteAt("Color: Blue",columnWidth+textBuffer,textBuffer+rowHeight*2);
+    } else {
+        LCD.WriteAt("Color: None",columnWidth+textBuffer,textBuffer+rowHeight*2);
+    }
+
+
     LCD.WriteAt(RCS.GetCorrectLever(),columnWidth+textBuffer,textBuffer+rowHeight*3);
 }
 
@@ -136,7 +166,13 @@ void driveForwardsTime(float power, float time) {
     updateUI(0,0);
 }
 
-void driveForwards(float power, int counts) {
+void driveForwards(float power, float inches) {
+    //Wheel Circumference = 8.64in
+    //Counts = 60
+    float circumference = 8.64;
+    int counts = (inches/circumference) * 60.0;
+
+    LCD.Clear();
     float maxVoltage = 11.5;
     float actualPower = maxVoltage/Battery.Voltage()*power;
 
@@ -146,32 +182,15 @@ void driveForwards(float power, int counts) {
     rightMotor.SetPercent(actualPower);
     leftMotor.SetPercent(-actualPower);
 
-    while((leftEncoder.Counts() + rightEncoder.Counts()) / 2. < counts);
+    while((leftEncoder.Counts() + rightEncoder.Counts()) / 2.0 < counts) {
+        LCD.Clear();
+        LCD.WriteAt(leftEncoder.Counts(), 5, 5);
+        LCD.WriteAt(rightEncoder.Counts(), 5, 30);
+        Sleep(0.1);
+    }
 
     rightMotor.Stop();
     leftMotor.Stop();
-}
-
-int getLightInput() {
-    float input = cdsCell.Value();
-    Sleep(0.1);
-    float input2 = cdsCell.Value();
-    Sleep(0.1);
-    float input3 = cdsCell.Value();
-
-    float average = (input + input2 + input3)/3;
-
-    if (average < 1.0) {
-        //red
-        return 1;
-    }
-    else if (average < 2.0) {
-        //blue
-        return 2;
-    }
-    else {
-        return 0;
-    }
 }
 
 void startWithLight() {
@@ -242,7 +261,7 @@ bool changeOrientation(bool orientation) {
         rightMotor.SetPercent(actualPower);
         newOrientation = true;
         servo.SetDegree(180.0);
-        Sleep(0.15);
+        Sleep(0.18);
         leftMotor.SetPercent(0);
         rightMotor.SetPercent(0);
     }
@@ -293,7 +312,7 @@ bool changeOrientationDebug(bool orientation) {
         rightMotor.SetPercent(actualPower);
         newOrientation = true;
         servo.SetDegree(180.0);
-        Sleep(0.15);
+        Sleep(0.18);
         leftMotor.SetPercent(0);
         rightMotor.SetPercent(0);
     }
@@ -386,27 +405,41 @@ int main(void) {
     updateUI(0,0);
 
     //set servo values
-    servo.SetMin(571);
-    servo.SetMax(1819);
+    servo.SetMin(502);
+    servo.SetMax(1771);
     servo.SetDegree(180);
-
-    runDebugMenu();
-    /*
 
     //Initialize RCS
     RCS.InitializeTouchMenu("C8LAaK2zD");
 
     //robot starts run in closed position (closed = true)
     bool orientation = true;
+    startWithLight();
 
-    //startWithLight();
+    driveForwardsTime(30, 1.8);
+    turnRight(20, 3.2);
+    driveForwardsTime(50, 1.2);
 
-    //Fuel Lever Code
+    driveForwardsTime(-50, 1.0);
+    turnLeft(20, 2.6);
+    driveForwardsTime(-30, 10);
 
-    driveForwardsTime(50, 2.4);
-    turnLeft(20, 2.5);
-    updateUI(0,0);
+    /*
+    Sleep(5.0);
+    orientation = changeOrientation(orientation);
+    driveForwards(75, 25);
+    Sleep(5.0);
+    orientation = changeOrientation(orientation);
 
+    driveForwards(30, 4.5);
+    orientation = changeOrientation(orientation);
+    driveForwards(30, 15);
+    driveForwards(-30, 15);
+
+    Sleep(5.0);
+    orientation = changeOrientation(orientation);
+
+    startWithLight();
     
     if (RCS.GetCorrectLever() == 0) {
         //A
@@ -440,6 +473,10 @@ int main(void) {
     //return to closed
     //Sleep(5.0);
     //orientation = changeOrientation(orientation);
+    
+    servo.SetDegree(160);
+    
+}
     
     //set to loose
     servo.SetDegree(160);
