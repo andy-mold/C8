@@ -16,11 +16,12 @@ FEHMotor leftMotor(FEHMotor::Motor2, 7.2);
 FEHMotor rightMotor(FEHMotor::Motor0, 7.2);
 
 DigitalEncoder leftEncoder(FEHIO::P0_2);
-DigitalEncoder rightEncoder(FEHIO::P3_0);
+DigitalEncoder rightEncoder(FEHIO::P3_5);
 
 AnalogInputPin cdsCell(FEHIO::P0_0);
 
 FEHServo servo(FEHServo::Servo0);
+FEHServo luggageServo(FEHServo::Servo7);
 
 void initializeStartup() {
     LCD.Clear();
@@ -193,6 +194,160 @@ void driveForwards(float power, float inches) {
     leftMotor.Stop();
 }
 
+void driveForwardsPID(float inches) {
+    rightEncoder.ResetCounts();
+    leftEncoder.ResetCounts();
+
+    float expectedVelocity = 10.0;
+    float countsPerRotation = 30.0;
+    float wheelCircumference = 8.64;
+    int counts = (inches/wheelCircumference) * 30.0;
+    float distancePerCount = wheelCircumference / countsPerRotation;
+    float time1, time2, leftCounts1, leftCounts2, rightCounts1, rightCounts2, timeChange, leftCountsChange, rightCountsChange, actualVelocity, leftError, leftErrorSum = 0, lastLeftError, rightError, rightErrorSum = 0, lastRightError;
+    float pTerm, iTerm, dTerm;
+    float leftMotorPower = 20.0, rightMotorPower = 20.0;
+    float pConstant = 0.75, dConstant = 0.2, iConstant = 0.08;
+    bool firstTime = true;
+    time1 = TimeNow();
+    leftCounts1 = leftEncoder.Counts();
+    rightCounts1 = rightEncoder.Counts();
+    leftMotor.SetPercent(-leftMotorPower);
+    rightMotor.SetPercent(rightMotorPower);
+    Sleep(0.3);
+
+    while((leftEncoder.Counts() + rightEncoder.Counts()) / 2.0 < counts) {
+        leftCounts2 = leftEncoder.Counts();
+        rightCounts2 =rightEncoder.Counts();
+        time2 = TimeNow();
+
+        timeChange = time2-time1;
+        leftCountsChange = leftCounts2-leftCounts1;
+        rightCountsChange = rightCounts2-rightCounts1;
+
+        //Left
+        actualVelocity = distancePerCount * (leftCountsChange / timeChange);
+        leftError = expectedVelocity - actualVelocity;
+        leftErrorSum += leftError;
+
+        pTerm = leftError * pConstant;
+        iTerm = leftErrorSum * iConstant;
+        if (!firstTime) {
+            dTerm = (leftError-lastLeftError) * dConstant;
+        }
+
+        leftMotorPower += pTerm + iTerm + dTerm;
+        leftMotor.SetPercent(-leftMotorPower);
+        
+
+        //Right
+        actualVelocity = distancePerCount * (rightCountsChange / timeChange);
+        rightError = expectedVelocity - actualVelocity;
+        rightErrorSum += rightError;
+
+        pTerm = rightError * pConstant;
+        iTerm = rightErrorSum * iConstant;
+        if (!firstTime) {
+            dTerm = (rightError-lastRightError) * dConstant;
+        } else {
+            firstTime = false;
+        }
+
+        rightMotorPower += pTerm + iTerm + dTerm;
+        rightMotor.SetPercent(rightMotorPower);
+
+        time1 = time2;
+        leftCounts1 = leftCounts2;
+        rightCounts1 = rightCounts2;
+        lastLeftError = leftError;
+        lastRightError = rightError;
+        Sleep(0.3);
+
+    }
+
+    leftMotor.Stop();
+    rightMotor.Stop();
+
+}
+
+void driveBackwardsPID(float inches) {
+    rightEncoder.ResetCounts();
+    leftEncoder.ResetCounts();
+
+    float expectedVelocity = 10.0;
+    float countsPerRotation = 60.0;
+    float wheelCircumference = 8.64;
+    int counts = (inches/wheelCircumference) * 60.0;
+    float distancePerCount = wheelCircumference / countsPerRotation;
+    float time1, time2, leftCounts1, leftCounts2, rightCounts1, rightCounts2, timeChange, leftCountsChange, rightCountsChange, actualVelocity, leftError, leftErrorSum = 0, lastLeftError, rightError, rightErrorSum = 0, lastRightError;
+    float pTerm, iTerm, dTerm;
+    float leftMotorPower = 20.0, rightMotorPower = 20.0;
+    float pConstant = 0.75, dConstant = 0.25, iConstant = 0.08;
+    bool firstTime = true;
+    time1 = TimeNow();
+    leftCounts1 = leftEncoder.Counts();
+    rightCounts1 = rightEncoder.Counts();
+    leftMotor.SetPercent(leftMotorPower);
+    rightMotor.SetPercent(-rightMotorPower);
+    Sleep(0.1);
+
+    while((leftEncoder.Counts() + rightEncoder.Counts()) / 2.0 < counts) {
+        leftCounts2 = leftEncoder.Counts();
+        rightCounts2 =
+        
+        rightEncoder.Counts();
+        time2 = TimeNow();
+
+        timeChange = time2-time1;
+        leftCountsChange = leftCounts2-leftCounts1;
+        rightCountsChange = rightCounts2-rightCounts1;
+
+        //Left
+        actualVelocity = distancePerCount * (leftCountsChange / timeChange);
+        leftError = expectedVelocity - actualVelocity;
+        leftErrorSum += leftError;
+
+        pTerm = leftError * pConstant;
+        iTerm = leftErrorSum * iConstant;
+        if (!firstTime) {
+            dTerm = (leftError-lastLeftError) * dConstant;
+        } else {
+            firstTime = false;
+        }
+
+        leftMotorPower += pTerm + iTerm + dTerm;
+        leftMotor.SetPercent(leftMotorPower);
+        
+
+        //Right
+        actualVelocity = distancePerCount * (rightCountsChange / timeChange);
+        rightError = expectedVelocity - actualVelocity;
+        rightErrorSum += rightError;
+
+        pTerm = rightError * pConstant;
+        iTerm = rightErrorSum * iConstant;
+        if (!firstTime) {
+            dTerm = (rightError-lastRightError) * dConstant;
+        } else {
+            firstTime = false;
+        }
+
+        rightMotorPower += pTerm + iTerm + dTerm;
+        rightMotor.SetPercent(-rightMotorPower);
+
+        time1 = time2;
+        leftCounts1 = leftCounts2;
+        rightCounts1 = rightCounts2;
+        lastLeftError = leftError;
+        lastRightError = rightError;
+        Sleep(0.1);
+
+    }
+
+    leftMotor.Stop();
+    rightMotor.Stop();
+
+}
+
 void startWithLight() {
     bool waiting = true;
 
@@ -276,7 +431,7 @@ void calibrateServo() {
     Sleep(2.0);
     orientation = changeOrientation(orientation);
     Sleep(2.0);
-    servo.SetDegree(155.0);
+    servo.SetDegree(160.0);
 }
 
 void driveForwardsDebug(float power, float time) {
@@ -405,7 +560,7 @@ int main(void) {
     updateUI(0,0);
 
     //set servo values
-    servo.SetMin(502);
+    servo.SetMin(558);
     servo.SetMax(1771);
     servo.SetDegree(180);
 
@@ -414,71 +569,207 @@ int main(void) {
 
     //robot starts run in closed position (closed = true)
     bool orientation = true;
-    startWithLight();
-
-    driveForwardsTime(30, 1.8);
-    turnRight(20, 3.2);
-    driveForwardsTime(50, 1.2);
-
-    driveForwardsTime(-50, 1.0);
-    turnLeft(20, 2.6);
-    driveForwardsTime(-30, 10);
 
     /*
-    Sleep(5.0);
-    orientation = changeOrientation(orientation);
-    driveForwards(75, 25);
-    Sleep(5.0);
-    orientation = changeOrientation(orientation);
-
-    driveForwards(30, 4.5);
-    orientation = changeOrientation(orientation);
-    driveForwards(30, 15);
-    driveForwards(-30, 15);
-
-    Sleep(5.0);
-    orientation = changeOrientation(orientation);
-
-    startWithLight();
-    
-    if (RCS.GetCorrectLever() == 0) {
-        //A
-        driveForwardsTime(30, 0.2);
-    } else if (RCS.GetCorrectLever() == 1) {
-        //A1
-        driveForwardsTime(50, 0.6);
-    } else if (RCS.GetCorrectLever() == 2) {
-        //B
-        driveForwardsTime(50, 1.0);
-    }
-
-    orientation = changeOrientation(orientation);
-
-    driveForwardsTime(-20, 2.6);
-    driveForwardsTime(20, 2.6);
-
-    
-    orientation = changeOrientation(orientation);
-    driveForwardsTime(20, 0.4);
-    orientation = changeOrientation(orientation);
-
-    driveForwardsTime(-20, 3.0);
-    driveForwardsTime(20, 2.6);
+    Code for full run starts here. In driving function, power is the first parameter, and time/distance (in) is the second parameter.
+    Positive power values will drive forwards or right depending on orientation, and negative values will drive backwards/left
     */
 
+    //Start With Lights
+    startWithLight();
+    driveForwardsTime(-20, 0.05);
 
-
-
-
-    //return to closed
-    //Sleep(5.0);
-    //orientation = changeOrientation(orientation);
+    //Lever Setup
+    driveForwards(50, 15);
+    turnLeft(20, 1.8);
     
-    servo.SetDegree(160);
+    //Align With Lever
+    if (RCS.GetCorrectLever() == 0) {
+        //A
+    } else if (RCS.GetCorrectLever() == 1) {
+        //A1
+        driveForwards(30, 2.5);
+    } else if (RCS.GetCorrectLever() == 2) {
+        //B
+        driveForwards(30, 6);
+    }
+
+    //Push Lever Down
+    orientation = changeOrientation(orientation);
+
+    driveForwardsTime(-30, 0.5);
+    driveForwardsTime(30, 0.5);
+
+    Sleep(1.0);
+    if (RCS.GetCorrectLever() != 2) {
+        orientation = changeOrientation(orientation);
+    }
+
+    //Reset after levers
+    if (RCS.GetCorrectLever() == 0) {
+        //A
+        driveForwards(30, 6);
+        Sleep(2.0);
+        orientation = changeOrientation(orientation);
+    } else if (RCS.GetCorrectLever() == 1) {
+        //A1
+        driveForwards(30, 2.5);
+        Sleep(2.0);
+        orientation = changeOrientation(orientation);
+    } else if (RCS.GetCorrectLever() == 2) {
+        //B
+    }
+
+    //Up steep ramp
+    driveForwards(80, 25);
     
-}
+    //To luggage
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+    driveForwards(-50, 8);
+
+    //luggage
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+    driveForwards(-30, 6);
+    driveForwards(30, 3);
+    orientation = changeOrientation(orientation);
+
+    //Align with light
+    driveForwards(30, 5);
+    orientation = changeOrientation(orientation);
+
+    /*
+    Anything after this point has not been tested, and most driving functions have placeholder values of 1 inch.
+    */
+
+    //Drive within a few inches of the light
+    driveForwards(50, 1);
+
+    //Detect light
+    int i = 0;
+    bool detected = false;
+    int currentLight;
+    int finalLight;
+
+    while(i < 10 || detected) {
+        driveForwards(20, 0.1);
+        currentLight = getLightInput();
+
+        if (currentLight == 1) {
+            //red
+            detected = true;
+            driveForwards(20, 0.1);
+            finalLight = getLightInput();
+        } else if (currentLight == 2) {
+            //blue
+            detected = true;
+            driveForwards(20, 0.1);
+            finalLight = getLightInput();
+        }
+
+        i++;
+    }
+
+    //Recorrect to the state before detect light section
+    double correctionDist = i;
+    driveForwards(-20, correctionDist/10);
+
+    //Get aligned with correct button
+    driveForwards(-30, 1);
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+
+    if (finalLight == 1) {
+        //red
+        driveForwards(-30, 1);
+    } else if (finalLight == 2) {
+        //blue
+        driveForwards(-30, 1);
+    }
+
+    //Run into button
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+    driveForwards(30, 1);
+    driveForwards(-30, 1);
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+
+    //Get back to same position no matter which button
+    if (finalLight == 2) {
+        //blue
+        driveForwards(-30, 1); //should be difference between red and blue distances in previous if/else block
+    }
+
+    //Align with passport stamp
+    driveForwards(-30, 1);
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+
+    //flip stamp
+    driveForwards(30, 1);
+    driveForwards(-30, 1);
+
+    //Get aligned with steep ramp
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+    driveForwards(-50, 1);
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
     
-    //set to loose
+    //Back down ramp
+    driveForwards(-80, 1);
+    Sleep(2.0);
+
+    //Realign with correct lever
+    if (RCS.GetCorrectLever() == 0) {
+        //A
+        orientation = changeOrientation(orientation);
+        driveForwards(-30, 1);
+        Sleep(2.0);
+        orientation = changeOrientation(orientation);
+    } else if (RCS.GetCorrectLever() == 1) {
+        //A1
+        orientation = changeOrientation(orientation);
+        driveForwards(-30, 1);
+        Sleep(2.0);
+        orientation = changeOrientation(orientation);
+    } else if (RCS.GetCorrectLever() == 2) {
+        //B
+        orientation = changeOrientation(orientation);
+        driveForwards(-30, 1);
+        Sleep(2.0);
+        orientation = changeOrientation(orientation);
+    }
+
+    //Flip lever back up
+    driveForwardsTime(-30, 0.5);
+    driveForwardsTime(30, 0.5);
+
+    //Recorrect after levers
+    Sleep(2.0);
+    orientation = changeOrientation(orientation);
+    
+    if (RCS.GetCorrectLever() == 1) {
+        //A1
+        orientation = changeOrientation(orientation);
+        driveForwards(-30, 1);
+        Sleep(2.0);
+        orientation = changeOrientation(orientation);
+    } else if (RCS.GetCorrectLever() == 2) {
+        //B
+        orientation = changeOrientation(orientation);
+        driveForwards(-30, 1);
+        Sleep(2.0);
+        orientation = changeOrientation(orientation);
+    }
+
+    //Back to start button
+    turnRight(20, 1.8);
+    driveForwardsTime(-50, 10); //extra distance to be safe
+
+    //Return to loose
     servo.SetDegree(160);
     
 }
