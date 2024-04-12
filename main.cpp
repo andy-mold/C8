@@ -11,9 +11,9 @@
 
 //front of robot marked with electrical tape
 //no grey tape
-FEHMotor leftMotor(FEHMotor::Motor2, 7.2);
+FEHMotor leftMotor(FEHMotor::Motor3, 7.2);
 //grey tape
-FEHMotor rightMotor(FEHMotor::Motor0, 7.2);
+FEHMotor rightMotor(FEHMotor::Motor1, 7.2);
 
 DigitalEncoder leftEncoder(FEHIO::P0_2);
 DigitalEncoder rightEncoder(FEHIO::P3_5);
@@ -21,7 +21,7 @@ DigitalEncoder rightEncoder(FEHIO::P3_5);
 AnalogInputPin cdsCell(FEHIO::P0_0);
 
 FEHServo servo(FEHServo::Servo0);
-FEHServo luggageServo(FEHServo::Servo7);
+FEHServo luggageServo(FEHServo::Servo2);
 
 void initializeStartup() {
     LCD.Clear();
@@ -51,7 +51,7 @@ void initializeUI() {
     int checkboxLength = 15;
 
     LCD.Clear();
-    LCD.SetFontColor(BLUE);
+    LCD.SetFontColor(WHITE);
 
     LCD.DrawRectangle(1,0,screenWidth-2,screenHeight-2);
 
@@ -115,7 +115,7 @@ void updateUI(float leftPower, float rightPower) {
     LCD.DrawRectangle(1, rowHeight + (screenHeight-rowHeight)/2, columnWidth-1, -1*((screenHeight-rowHeight)/2)*leftPower/100.0);
     LCD.DrawRectangle(screenWidth-columnWidth, rowHeight + (screenHeight-rowHeight)/2, columnWidth-1, -1*((screenHeight-rowHeight)/2)*rightPower/100.0);
 
-    LCD.SetFontColor(BLUE);
+    LCD.SetFontColor(WHITE);
     LCD.WriteAt("CDS:",columnWidth+textBuffer,textBuffer+rowHeight);
     LCD.WriteAt(cdsCell.Value(), columnWidth+textBuffer+50, textBuffer+rowHeight);
 
@@ -434,17 +434,27 @@ void calibrateServo() {
     servo.SetDegree(160.0);
 }
 
-void driveForwardsDebug(float power, float time) {
+void driveForwardsDebug(float power, float inches) {
+    //Wheel Circumference = 8.64in
+    //Counts = 60
+    float circumference = 8.64;
+    int counts = (inches/circumference) * 40.0;
+
     float maxVoltage = 11.5;
     float actualPower = maxVoltage/Battery.Voltage()*power;
 
-    leftMotor.SetPercent(-actualPower);
+    rightEncoder.ResetCounts();
+    leftEncoder.ResetCounts();
+
     rightMotor.SetPercent(actualPower);
+    leftMotor.SetPercent(-actualPower);
 
-    Sleep(time);
+    while((leftEncoder.Counts() + rightEncoder.Counts()) / 2.0 < counts) {
+        Sleep(0.1);
+    }
 
-    leftMotor.Stop();
     rightMotor.Stop();
+    leftMotor.Stop();
 }
 
 bool changeOrientationDebug(bool orientation) {
@@ -506,15 +516,15 @@ void runDebugMenu() {
     LCD.WriteAt("70%", columnWidth + textBuffer, textBuffer + screenHeight / 2);
     LCD.WriteAt("90%", columnWidth + textBuffer, textBuffer + screenHeight / 2 + screenHeight / 4);
 
-    LCD.WriteAt("1s", screenWidth / 2 + textBuffer, textBuffer);
-    LCD.WriteAt("3s", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 4);
-    LCD.WriteAt("5s", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 2);
-    LCD.WriteAt("7s", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 2 + screenHeight / 4);
+    LCD.WriteAt("3in", screenWidth / 2 + textBuffer, textBuffer);
+    LCD.WriteAt("5in", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 4);
+    LCD.WriteAt("10in", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 2);
+    LCD.WriteAt("15in", screenWidth / 2 + textBuffer, textBuffer + screenHeight / 2 + screenHeight / 4);
 
     bool exit = false;
     bool orientation = true;
 
-    float time = 1.0;
+    float distance = 3.0;
     float power = 20.0;
 
     while(!exit) {
@@ -526,9 +536,9 @@ void runDebugMenu() {
         while(LCD.Touch(&x_trash,&y_trash)) {};
 
         if (x_position < 100 && y_position < 120) {
-            driveForwardsDebug(power, time);
+            driveForwardsDebug(power, distance);
         } else if (x_position < 100) {
-            driveForwardsDebug(-power, time);
+            driveForwardsDebug(-power, distance);
         } else if (x_position < screenWidth/2 && y_position < screenHeight/4) {
             power = 20.0;
         } else if (x_position < screenWidth/2 && y_position < screenHeight/2) {
@@ -538,13 +548,13 @@ void runDebugMenu() {
         } else if (x_position < screenWidth/2) {
             power = 90.0;
         } else if (x_position < screenWidth - columnWidth && y_position < screenHeight/4) {
-            time = 1.0;
+            distance = 3.0;
         } else if (x_position < screenWidth - columnWidth && y_position < screenHeight/2) {
-            time = 3.0;
+            distance = 5.0;
         } else if (x_position < screenWidth - columnWidth && y_position < screenHeight/4 + screenHeight/2) {
-            time = 5.0;
+            distance = 10.0;
         } else if (x_position < screenWidth - columnWidth) {
-            time = 7.0;
+            distance = 15.0;
         } else if (y_position < screenHeight/2) {
             orientation = changeOrientationDebug(orientation);
         } else {
@@ -564,6 +574,11 @@ int main(void) {
     servo.SetMax(1771);
     servo.SetDegree(180);
 
+    luggageServo.SetMin(652);
+    //neutral 1409
+    luggageServo.SetMax(1657);
+    luggageServo.SetDegree(0);
+
     //Initialize RCS
     RCS.InitializeTouchMenu("C8LAaK2zD");
 
@@ -577,7 +592,8 @@ int main(void) {
 
     //Start With Lights
     startWithLight();
-    driveForwardsTime(-20, 0.05);
+    servo.SetDegree(135);
+    driveForwardsTime(-20, 0.02);
 
     //Lever Setup
     driveForwards(50, 15);
@@ -597,8 +613,8 @@ int main(void) {
     //Push Lever Down
     orientation = changeOrientation(orientation);
 
-    driveForwardsTime(-30, 0.5);
-    driveForwardsTime(30, 0.5);
+    driveForwardsTime(-30, 1);
+    driveForwardsTime(30, 1);
 
     Sleep(1.0);
     if (RCS.GetCorrectLever() != 2) {
@@ -621,7 +637,7 @@ int main(void) {
     }
 
     //Up steep ramp
-    driveForwards(80, 25);
+    driveForwards(85, 23);
     
     //To luggage
     Sleep(2.0);
@@ -631,61 +647,63 @@ int main(void) {
     //luggage
     Sleep(2.0);
     orientation = changeOrientation(orientation);
-    driveForwards(-30, 6);
+    driveForwardsTime(-30, 1.0);
+    luggageServo.SetDegree(180);
+    Sleep(1.0);
+    driveForwardsTime(30, 1.0);
+    luggageServo.SetDegree(0);
+    orientation = changeOrientation(orientation);
+
+    //buttons
+    driveForwards(30, 20);
+    driveForwards(-30, 20);
+    Sleep(1.0);
+    orientation = changeOrientation(orientation);
+    driveForwards(30, 13);
+    driveForwardsTime(-30, 20);
+
+
+    /*
+    //Align with light
     driveForwards(30, 3);
     orientation = changeOrientation(orientation);
 
-    //Align with light
-    driveForwards(30, 5);
-    orientation = changeOrientation(orientation);
-
-    /*
-    Anything after this point has not been tested, and most driving functions have placeholder values of 1 inch.
-    */
-
     //Drive within a few inches of the light
-    driveForwards(50, 1);
+    driveForwards(50, 10);
 
     //Detect light
-    int i = 0;
     bool detected = false;
     int currentLight;
     int finalLight;
+    double startTime = TimeNow();
+    double finalTime;
 
-    while(i < 10 || detected) {
-        driveForwards(20, 0.1);
+    leftMotor.SetPercent(-10);
+    rightMotor.SetPercent(10);
+    while(!detected && finalTime-startTime < 2.0) {   
         currentLight = getLightInput();
+        finalTime = TimeNow();
 
-        if (currentLight == 1) {
-            //red
+        if (currentLight == 1 || currentLight == 2) {
             detected = true;
-            driveForwards(20, 0.1);
-            finalLight = getLightInput();
-        } else if (currentLight == 2) {
-            //blue
-            detected = true;
-            driveForwards(20, 0.1);
             finalLight = getLightInput();
         }
-
-        i++;
     }
+    leftMotor.Stop();
+    rightMotor.Stop();
 
-    //Recorrect to the state before detect light section
-    double correctionDist = i;
-    driveForwards(-20, correctionDist/10);
 
     //Get aligned with correct button
-    driveForwards(-30, 1);
+    driveForwards(-50, 1);
     Sleep(2.0);
     orientation = changeOrientation(orientation);
 
     if (finalLight == 1) {
         //red
-        driveForwards(-30, 1);
+        driveForwards(-30, 10);
     } else if (finalLight == 2) {
         //blue
-        driveForwards(-30, 1);
+        driveForwards(-30, 5);
     }
 
     //Run into button
@@ -694,32 +712,42 @@ int main(void) {
     driveForwards(30, 1);
     driveForwards(-30, 1);
     Sleep(2.0);
-    orientation = changeOrientation(orientation);
 
     //Get back to same position no matter which button
     if (finalLight == 2) {
         //blue
-        driveForwards(-30, 1); //should be difference between red and blue distances in previous if/else block
+        orientation = changeOrientation(orientation);
+        driveForwards(-30, 5); //should be difference between red and blue distances in previous if/else block
+        orientation = changeOrientation(orientation);
     }
 
-    //Align with passport stamp
-    driveForwards(-30, 1);
+    runDebugMenu();
+
+    //Align with passport stamp (front/back)
+    driveForwards(-30, 15);
     Sleep(2.0);
     orientation = changeOrientation(orientation);
 
+    //Align with passport stamp (left/right)
+    orientation = changeOrientation(orientation);
+    driveForwards(-10, 2);
+    orientation = changeOrientation(orientation);
+
     //flip stamp
-    driveForwards(30, 1);
-    driveForwards(-30, 1);
+    driveForwards(30, 4);
+    driveForwards(-30, 5);
+
+    
 
     //Get aligned with steep ramp
     Sleep(2.0);
     orientation = changeOrientation(orientation);
-    driveForwards(-50, 1);
+    driveForwards(-50, 20);
     Sleep(2.0);
     orientation = changeOrientation(orientation);
     
     //Back down ramp
-    driveForwards(-80, 1);
+    driveForwards(-50, 25);
     Sleep(2.0);
 
     //Realign with correct lever
@@ -769,6 +797,7 @@ int main(void) {
     turnRight(20, 1.8);
     driveForwardsTime(-50, 10); //extra distance to be safe
 
+    */
     //Return to loose
     servo.SetDegree(160);
     
